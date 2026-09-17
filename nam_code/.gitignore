@@ -1,0 +1,15 @@
+cex.txt
+out.txt
+abcrown_dir/
+abcrown_dir_*/
+exp_logs_*/
+models/
+__pycache__/
+miniconda.sh
+*.png
+.idea
+*.asv
+
+# temporarily ignore results folder
+results
+data

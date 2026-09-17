@@ -1,0 +1,11 @@
+auto-LiRPA==0.3
+ipython==8.18.1
+numpy
+scikit-learn
+scipy
+torch==1.12.1
+torchvision==0.13.1
+tqdm==4.67.1
+matplotlib
+pandas
+git+https://github.com/Verified-Intelligence/onnx2pytorch@325959ed128200459a9634668149a722a6a74797#egg=onnx2pytorch
