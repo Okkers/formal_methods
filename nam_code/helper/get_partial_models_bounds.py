@@ -1,4 +1,13 @@
+from pathlib import Path
+import sys
+
 import torch
+
+_REPO_ROOT = Path(__file__).resolve().parents[1]
+_AUTO_LIRPA_PATH = _REPO_ROOT / "abcrown_dir" / "auto_LiRPA"
+if str(_AUTO_LIRPA_PATH) not in sys.path:
+    sys.path.insert(0, str(_AUTO_LIRPA_PATH))
+
 import auto_LiRPA as lirpa
 from helper.nam_train_test_save_load import FeatureNN
 

@@ -10,6 +10,8 @@ miniconda.sh
 .idea
 *.asv
 
+.venv/
+
 # temporarily ignore results folder
 results
 data
