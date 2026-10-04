@@ -32,7 +32,7 @@ def load_real_sample_from_json(json_path):
         "raw": result,
     }
 
-def find_all_explanations_for_real_sample(json_path, verify = True):
+def find_all_explanations_for_real(json_path, verify = True):
 
     sample = load_real_sample_from_json(json_path)
     explanations = find_all_subsets(sample["f_x"], sample["deltas"], sample["k"])
@@ -48,6 +48,6 @@ def find_all_explanations_for_real_sample(json_path, verify = True):
 if __name__ == "__main__":
     pth_to_data = "nam_code/exp_logs_3_credit_parallel/result__breast_cancer__1__0.15.json"
 
-    test = find_all_explanations_for_real_sample(pth_to_data)
+    test = find_all_explanations_for_real(pth_to_data)
 
     print(test)
