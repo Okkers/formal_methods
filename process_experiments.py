@@ -73,8 +73,6 @@ if __name__ == "__main__":
             features_in_all_subsets = counts == len(subsets)
         else:
             features_in_all_subsets = np.zeros(len(ls), dtype=bool)
-        print(features_in_all_subsets)
-        print(dict(zip(range(len(counts)), counts)))
 
         print(f"There are {features_in_all_subsets.sum()} features that are in all sets")
         plot_frequencies(counts, len(subsets), k, processed_path, i)
