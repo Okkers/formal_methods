@@ -59,16 +59,13 @@ def find_all_subsets(f_x, deltas, k):
 def brute_force(f_x, deltas, k):
     n = len(deltas)
     threshold = abs(f_x)
-    fits = (lambda total: total >= threshold)
 
     matches = []
     for S in combinations(range(n), k):
-        
-        complement = [i for i in range(n) if i not in S]
-        comp_sum = sum(deltas[i] for i in complement)
-        if fits(comp_sum):
+        S_set = set(S)
+        comp_sum = sum(deltas[i] for i in range(n) if i not in S_set)
+        if comp_sum < threshold:   # <- this was the problem all along :')
             matches.append(S)
-
     return matches
 
 

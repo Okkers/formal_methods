@@ -2,7 +2,8 @@ import json
 import os
 import numpy as np
 import matplotlib.pyplot as plt
-from sufficient_explanations import load_results, brute_force
+from sufficient_explanations import load_results, brute_force, find_all_subsets
+import time
 
 def frequencies(tuples, n):
     counts = [0] * n
@@ -49,6 +50,11 @@ if __name__ == "__main__":
     epsilon = params["epsilon"]
 
 
+    RUN_WITH_BRUTE = False
+
+    runtime_brute = []
+    runtime_fast = []
+
     for i in range(N):
         res = load_results(f"{path}/result__breast_cancer__{i}__{epsilon}.json")
 
@@ -62,21 +68,40 @@ if __name__ == "__main__":
         ls = np.array([b[0] for b in impact_bounds])
         k = np.array(res['is_part_explanation']).sum()
 
-        subsets = brute_force(f_x, ls, k)
-        # print(subsets)
-        
-        print(f"{len(subsets)} cardinally minimal subsets were found with k={k}")
-        counts = frequencies(subsets, len(ls))
+
+        if RUN_WITH_BRUTE:
+            t1 = time.time()
+            subsets = brute_force(f_x, ls, k)
+            runtime_brute.append(time.time() - t1)
+            print(f"{len(subsets)} cardinally minimal subsets were found with k={k}")
+            brute_sets = {tuple(sorted(s)) for s in subsets}
+            brute_counts = frequencies(brute_sets, len(ls))
+
+        t2 = time.time()
+        fast_subsets = find_all_subsets(f_x, ls, k)
+        runtime_fast.append(time.time() - t2)
+        print(f"{len(fast_subsets)} subsets found by find_all_subsets with k={k}")
+
+        fast_sets = {tuple(sorted(indices)) for indices, _ in fast_subsets}
+
+        if RUN_WITH_BRUTE:
+            print(f"Both methods agree: {brute_sets == fast_sets}")
+  
+        fast_counts = frequencies(fast_sets, len(ls))
 
         if subsets:
             # Index 0 is unused because feature IDs are 1-based.
-            features_in_all_subsets = counts == len(subsets)
+            features_in_all_subsets = fast_counts == len(subsets)
         else:
             features_in_all_subsets = np.zeros(len(ls), dtype=bool)
 
         print(f"There are {features_in_all_subsets.sum()} features that are in all sets")
-        plot_frequencies(counts, len(subsets), k, processed_path, i)
+        plot_frequencies(fast_counts, len(subsets), k, processed_path, i)
         print("\n")
+
+        print("Runtimes Brute:", runtime_brute)
+        print("-----")
+        print("Runtimes Fast:", runtime_fast)
 
 
     
