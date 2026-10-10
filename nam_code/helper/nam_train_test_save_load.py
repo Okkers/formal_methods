@@ -281,9 +281,22 @@ def save_full_model(model, path):
 
 # Load the entire model
 def load_full_model(path, input_size, device, is_bigger_nam=False):
-    cls = NeuralAdditiveModelBigger if is_bigger_nam else NeuralAdditiveModel
-    model = cls(input_size).to(device)
-    model.load_state_dict(torch.load(path, map_location=device))
+    state_dict = torch.load(path, map_location=device)
+    feature_keys = [key for key in state_dict if key.startswith("feature_nns.0.")]
+
+    if any(key.startswith("feature_nns.0.network.") for key in feature_keys):
+        model = NeuralAdditiveModelBigger(input_size)
+    elif any(key.startswith("feature_nns.0.layers.") for key in feature_keys):
+        model = NeuralAdditiveModel(input_size, with_exu=False)
+    elif any(key.startswith("feature_nns.0.exu.") for key in feature_keys):
+        model = NeuralAdditiveModel(input_size, with_exu=True)
+    else:
+        raise ValueError(
+            f"Cannot infer NAM architecture from checkpoint keys in {path}"
+        )
+
+    model = model.to(device)
+    model.load_state_dict(state_dict)
     print(f"Full model loaded from {path}")
     return model
 

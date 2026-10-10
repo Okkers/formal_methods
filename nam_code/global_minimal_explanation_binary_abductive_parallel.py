@@ -855,7 +855,7 @@ def global_minimal_explanation_binary_abductive(
         total_time_part2 = timeout - total_time_part1
     else:
         total_time_part2 = time.time() - start_time_part2
-    return F[:UB], total_time_part1, total_time_part2, unknown_i_contains_j, F, per_feature_pairs, feature_times, v, bounds
+    return F[:UB], total_time_part1, total_time_part2, unknown_i_contains_j, F, per_feature_pairs, feature_times, v, bounds, f_x
 
     # # S <- {} The current sufficient reason
     # S = set()
@@ -1036,14 +1036,14 @@ if __name__ == "__main__":
         'time': {
             # 'startup': float(startup_time), --> sorting_time
             'per_feature': []  # searching time
-        }
+        },
     }
 
     # get the explanation
     try:
         start_time = time.time()
         explanation, part1_time, part2_time, unknown_indices, F_full, \
-            per_feature_pairs, feature_times, impact_bounds, partial_net_bounds = \
+            per_feature_pairs, feature_times, impact_bounds, partial_net_bounds, f_x = \
             global_minimal_explanation_binary_abductive(
             loaded_model, x, epsilon, root_dir, timeout, cex_path, use_subprocess, 
             verifier_name, python_path, verifier_path, compute_bounds_method, num_processors,
@@ -1075,8 +1075,14 @@ if __name__ == "__main__":
                 'full_feature_times': feature_times
             })
         result['finished'] = part1_time is not None and part2_time is not None
+
+        # perhaps we could cache this in the method above, but we wouldnt save much
+        result['f_x_i'] = list([loaded_model.feature_nns[i](xi.reshape(-1)).float().item() for (i, xi) in enumerate(x)])
+        result['f_x'] = f_x.float().item()
+
+        print(f"\n\n{result} \n\n")
         
-        summary = ", ".join([
+        summary = ",\n ".join([
                 f"dataset={dataset}",
                 f"sample_index={sample_index}",
                 f"epsilon={epsilon}",

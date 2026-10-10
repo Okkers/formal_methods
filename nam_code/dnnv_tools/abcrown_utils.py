@@ -1,9 +1,17 @@
 import subprocess
 import sys
-from complete_verifier import ABCROWN
-import arguments
 import torch
 import os
+
+abcrown_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "abcrown_dir"))
+auto_lirpa_dir = os.path.join(abcrown_dir, "auto_LiRPA")
+if auto_lirpa_dir not in sys.path:
+    sys.path.insert(0, auto_lirpa_dir)
+if abcrown_dir not in sys.path:
+    sys.path.append(abcrown_dir)
+
+from complete_verifier import ABCROWN
+import arguments
 
 
 def add_general(yaml_file, device="cpu", root_dir="./abcrown_dir", tab=" " * 2, verbosity=0):
