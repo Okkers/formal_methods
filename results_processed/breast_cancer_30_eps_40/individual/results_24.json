@@ -1,9 +1,10 @@
 {
     "k": 12,
-    "runtime_fast": 0.000278472900390625,
+    "runtime_fast": 0.0002727508544921875,
     "intersection_size": 2,
     "features_in_intersection": [
         1,
-        14
-    ]
+        13
+    ],
+    "num_subsets": 61
 }

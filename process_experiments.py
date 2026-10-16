@@ -17,15 +17,63 @@ def frequencies(tuples, n):
         return np.array(counts)
     return np.array(counts)
 
+def plot_boxplot(freq_per_point, features, eps):
+    plt.figure(figsize=(10, 5))
+    plt.boxplot(freq_per_point)
+
+    plt.xlabel("Feature")
+    plt.ylabel("Probability of appearing in an explanation (over multiple samples)")
+    plt.title(f"Probability of features appearing in an explanation ($\epsilon$={eps})")
+    plt.xticks(
+        ticks=range(features),
+        labels=range(1, features + 1),
+    )
+
+    plt.tight_layout()
+    plt.savefig(f"{processed_path}/boxplot.png")
+    plt.close()
+
+
+def plot_heatmap(freq_per_point, features, eps):
+    plt.figure(figsize=(7, 7))
+    plt.imshow(freq_per_point, aspect="auto")
+
+    plt.xlabel("Feature")
+    plt.ylabel("Input instance")
+    plt.title(f"Probability of features appearing in an explanation, per input ($\\epsilon$={eps})")
+
+    plt.xticks(
+        ticks=range(features),
+        labels=range(1, features + 1),
+    )
+
+    plt.tight_layout()
+    plt.savefig(f"{processed_path}/heatmap.png", dpi=300)
+    plt.close()
+
+def plot_scatter_k_num(logs, eps):
+    ks = [log['k'] for log in logs]
+    sizes = [log['num_subsets'] for log in logs]
+
+    plt.figure(figsize=(10, 5))
+    plt.scatter(ks, sizes)
+
+    plt.xlabel("Size of minimal explanation")
+    plt.ylabel("Number of minimal explanations")
+    plt.title(f"Size of explanations vs number of explanations ($\epsilon$={eps})")
+    plt.xticks(ticks=range(max(ks) + 1))
+
+    plt.tight_layout()
+    plt.savefig(f"{processed_path}/scatter_k_vs_subsets.png")
+    plt.close()
+
+
 
 def plot_frequencies(counts, len_subsets, k, processed_path, i):
     os.makedirs(f"{processed_path}/frequencies", exist_ok=True)
 
     non_zero = counts[counts > 0]
     normalize = non_zero.min() if len(non_zero) > 0 else 1
-    
-    print("SMALLEST: ", normalize)
-    print("BIGGEST: ", counts.max())
 
     plt.figure(figsize=(10, 5))
     plt.bar(range(len(counts)), counts / normalize)
@@ -40,7 +88,12 @@ def plot_frequencies(counts, len_subsets, k, processed_path, i):
 
 
 if __name__ == "__main__":
-    folder = "breast_cancer_30_eps_40"
+    # folder = "breast_cancer_30_eps_20"
+    # folder = "breast_cancer_y_is_0_eps20"
+    folder = "credit_50_eps40"
+
+    dataset = "credit"
+
     path = f"results/{folder}"
 
     processed_path = f"results_processed/{folder}"
@@ -49,8 +102,10 @@ if __name__ == "__main__":
     with open(f"{path}/parameters.json") as params:
         params = json.load(params)
 
-    N = params["N"]
+    
     epsilon = params["epsilon"]
+    indices = params['indices']
+    N = len(indices)
 
 
     RUN_WITH_BRUTE = False
@@ -59,11 +114,12 @@ if __name__ == "__main__":
     runtime_fast = []
 
     logs = []
-    for i in range(N):
+    freq_per_point = []
+    for i in indices:
         log = dict()
         # logs.push[log]
 
-        res = load_results(f"{path}/result__breast_cancer__{i}__{epsilon}.json")
+        res = load_results(f"{path}/result__{dataset}__{i}__{epsilon}.json")
 
         f_x = res['f_x']
 
@@ -98,7 +154,15 @@ if __name__ == "__main__":
         if RUN_WITH_BRUTE:
             print(f"Both methods agree: {brute_sets == fast_sets}")
   
-        fast_counts = frequencies(fast_sets, len(ls))[feature_mask]
+        counts_sorted = frequencies(fast_sets, len(ls))
+        fast_counts = np.zeros_like(counts_sorted)
+        fast_counts[feature_mask] = counts_sorted
+
+        if len(fast_subsets) == 0:
+            freq_per_point.append(fast_counts)
+        else:
+            freq_per_point.append(fast_counts / len(fast_subsets))
+        
 
         if subsets:
             # Index 0 is unused because feature IDs are 1-based.
@@ -112,6 +176,7 @@ if __name__ == "__main__":
         print(f"There are {intersection} features that are in all sets")
         log['intersection_size'] = intersection
         log['features_in_intersection'] = in_intersection
+        log['num_subsets'] = len(fast_sets)
         logs.append(log)
 
         plot_frequencies(fast_counts, len(fast_sets), k, processed_path, i)
@@ -126,7 +191,9 @@ if __name__ == "__main__":
             json.dump(log, f, indent=4)
             f.write("\n")
 
-
+    plot_boxplot(np.array(freq_per_point), len(res["f_x_i"]), epsilon)
+    plot_heatmap(np.array(freq_per_point), len(res["f_x_i"]), epsilon)
+    plot_scatter_k_num(logs, epsilon)
 
 # ================Summary===================
 # ===========================================

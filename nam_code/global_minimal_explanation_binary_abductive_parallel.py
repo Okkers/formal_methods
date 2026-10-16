@@ -1024,6 +1024,9 @@ if __name__ == "__main__":
     X_batch, y_batch = X_batch.to(device), y_batch.to(device)
     x = X_batch[0]
 
+    # if y_batch[0] == 1:
+    #     exit(-1)
+
     result = {
         'dataset': dataset,
         'instance_id': int(sample_index),

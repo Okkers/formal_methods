@@ -32,6 +32,11 @@ fi
 
 EXP_LOG_DIR="../results/${OUTPUT}"
 mkdir -p "$EXP_LOG_DIR"
+
+# Marker dir: one empty file per sample that did NOT exit with -1 (255)
+MARKER_DIR="$(mktemp -d)"
+trap 'rm -rf "$MARKER_DIR"' EXIT
+
 N="$N" EPSILON="$EPSILON" OUTPUT_DIR="$EXP_LOG_DIR" python3 - <<'PY'
 import json
 import os
@@ -40,7 +45,7 @@ from pathlib import Path
 output_dir = Path(os.environ["OUTPUT_DIR"])
 with (output_dir / "parameters.json").open("w") as parameters_file:
     json.dump(
-        {"N": int(os.environ["N"]), "epsilon": float(os.environ["EPSILON"])},
+        {"N": int(os.environ["N"]), "epsilon": float(os.environ["EPSILON"]), "indices": []},
         parameters_file,
         indent=2,
     )
@@ -54,7 +59,16 @@ run_one() {
         --sample_index "$i" \
         --epsilon "$EPSILON" \
         --exp_log_dir "$EXP_LOG_DIR" \
-    || echo "Sample $i FAILED" >&2
+        --dataset credit
+    local rc=$?
+
+    # Python's exit(-1) shows up as 255 in the shell
+    if [[ $rc -eq 255 ]]; then
+        echo "Sample $i exited with -1, not recording index" >&2
+    else
+        touch "$MARKER_DIR/$i"
+        [[ $rc -ne 0 ]] && echo "Sample $i exited with code $rc" >&2
+    fi
 }
 
 if [[ "$JOBS" -le 1 ]]; then
@@ -71,5 +85,19 @@ else
     done
     wait
 fi
+
+# Write the collected indices into parameters.json
+OUTPUT_DIR="$EXP_LOG_DIR" MARKER_DIR="$MARKER_DIR" python3 - <<'PY'
+import json
+import os
+from pathlib import Path
+
+path = Path(os.environ["OUTPUT_DIR"]) / "parameters.json"
+indices = sorted(int(p.name) for p in Path(os.environ["MARKER_DIR"]).iterdir())
+
+params = json.loads(path.read_text())
+params["indices"] = indices
+path.write_text(json.dumps(params, indent=2) + "\n")
+PY
 
 echo "Done. Results saved in $EXP_LOG_DIR"
