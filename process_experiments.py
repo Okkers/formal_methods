@@ -3,7 +3,7 @@ import os
 import numpy as np
 import matplotlib.pyplot as plt
 from sufficient_explanations import load_results, brute_force, find_all_subsets
-from baselines import compute_shap
+from baselines import compute_shap_lime
 import time
 
 def frequencies(tuples, n):
@@ -37,39 +37,35 @@ def plot_boxplot(freq_per_point, features, eps):
 
 def plot_heatmap(freq_per_point, features, eps, mode="algorithm"):
 
+    plt.figure(figsize=(8, 8))
+    plt.imshow(freq_per_point, aspect="auto")
+
+    plt.xlabel("Feature")
+    plt.ylabel("Input instance")
+
+    plt.xticks(
+        ticks=range(features),
+        labels=range(1, features + 1),
+    )
+
+
     if mode == "SHAP":
-        plt.figure(figsize=(7, 7))
-        plt.imshow(freq_per_point, aspect="auto")
-
-        plt.xlabel("Feature")
-        plt.ylabel("Input instance")
         plt.title(f"SHAP values")
+        plot_name = f"{processed_path}/heatmap_SHAP.png"
+ 
 
-        plt.xticks(
-            ticks=range(features),
-            labels=range(1, features + 1),
-        )
-
-        plt.tight_layout()
-        plt.savefig(f"{processed_path}/heatmap_SHAP.png", dpi=300)
-        plt.close()   
+    elif mode == "LIME":
+        plt.title("LIME values")
+        plot_name = f"{processed_path}/heatmap_LIME.png"
+    
 
     else:
-        plt.figure(figsize=(7, 7))
-        plt.imshow(freq_per_point, aspect="auto")
-
-        plt.xlabel("Feature")
-        plt.ylabel("Input instance")
         plt.title(f"Probability of features appearing in an explanation, per input ($\\epsilon$={eps})")
+        plot_name = f"{processed_path}/heatmap.png"
 
-        plt.xticks(
-            ticks=range(features),
-            labels=range(1, features + 1),
-        )
-
-        plt.tight_layout()
-        plt.savefig(f"{processed_path}/heatmap.png", dpi=300)
-        plt.close()
+    plt.tight_layout()
+    plt.savefig(plot_name, dpi=300)
+    plt.close()
 
 def plot_scatter_k_num(logs, eps):
     ks = [log['k'] for log in logs]
@@ -110,11 +106,11 @@ def plot_frequencies(counts, len_subsets, k, processed_path, i):
 if __name__ == "__main__":
 
 
-    # folder = "breast_cancer_30_eps_20"
+    folder = "breast_cancer_30_eps_20"
     # folder = "breast_cancer_y_is_0_eps20"
-    folder = "credit_50_eps40"
+    # folder = "credit_50_eps40"
 
-    dataset = "credit"
+    dataset = "breast_cancer"
 
     model_pth = f"nam_code/models/{dataset}/nam_full.pth"
 
@@ -219,13 +215,15 @@ if __name__ == "__main__":
             f.write("\n")
 
     if dataset == "breast_cancer":
-        shap_vals = compute_shap(model_pth,
+        shap_vals, lime_vals = compute_shap_lime(model_pth,
                                 dataset,
                                 batch_size,
                                 device,
                                 indices)
 
+
         plot_heatmap(shap_vals, len(res["f_x_i"]), epsilon, mode = "SHAP")
+        plot_heatmap(lime_vals, len(res["f_x_i"]), epsilon, mode = "LIME")
 
     plot_boxplot(np.array(freq_per_point), len(res["f_x_i"]), epsilon)
     plot_heatmap(np.array(freq_per_point), len(res["f_x_i"]), epsilon)
