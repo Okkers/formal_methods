@@ -3,6 +3,7 @@ import os
 import numpy as np
 import matplotlib.pyplot as plt
 from sufficient_explanations import load_results, brute_force, find_all_subsets
+from baselines import compute_shap
 import time
 
 def frequencies(tuples, n):
@@ -34,22 +35,41 @@ def plot_boxplot(freq_per_point, features, eps):
     plt.close()
 
 
-def plot_heatmap(freq_per_point, features, eps):
-    plt.figure(figsize=(7, 7))
-    plt.imshow(freq_per_point, aspect="auto")
+def plot_heatmap(freq_per_point, features, eps, mode="algorithm"):
 
-    plt.xlabel("Feature")
-    plt.ylabel("Input instance")
-    plt.title(f"Probability of features appearing in an explanation, per input ($\\epsilon$={eps})")
+    if mode == "SHAP":
+        plt.figure(figsize=(7, 7))
+        plt.imshow(freq_per_point, aspect="auto")
 
-    plt.xticks(
-        ticks=range(features),
-        labels=range(1, features + 1),
-    )
+        plt.xlabel("Feature")
+        plt.ylabel("Input instance")
+        plt.title(f"SHAP values")
 
-    plt.tight_layout()
-    plt.savefig(f"{processed_path}/heatmap.png", dpi=300)
-    plt.close()
+        plt.xticks(
+            ticks=range(features),
+            labels=range(1, features + 1),
+        )
+
+        plt.tight_layout()
+        plt.savefig(f"{processed_path}/heatmap_SHAP.png", dpi=300)
+        plt.close()   
+
+    else:
+        plt.figure(figsize=(7, 7))
+        plt.imshow(freq_per_point, aspect="auto")
+
+        plt.xlabel("Feature")
+        plt.ylabel("Input instance")
+        plt.title(f"Probability of features appearing in an explanation, per input ($\\epsilon$={eps})")
+
+        plt.xticks(
+            ticks=range(features),
+            labels=range(1, features + 1),
+        )
+
+        plt.tight_layout()
+        plt.savefig(f"{processed_path}/heatmap.png", dpi=300)
+        plt.close()
 
 def plot_scatter_k_num(logs, eps):
     ks = [log['k'] for log in logs]
@@ -88,11 +108,18 @@ def plot_frequencies(counts, len_subsets, k, processed_path, i):
 
 
 if __name__ == "__main__":
+
+
     # folder = "breast_cancer_30_eps_20"
     # folder = "breast_cancer_y_is_0_eps20"
     folder = "credit_50_eps40"
 
     dataset = "credit"
+
+    model_pth = f"nam_code/models/{dataset}/nam_full.pth"
+
+    batch_size = 1
+    device = "cpu"
 
     path = f"results/{folder}"
 
@@ -191,8 +218,18 @@ if __name__ == "__main__":
             json.dump(log, f, indent=4)
             f.write("\n")
 
+    if dataset == "breast_cancer":
+        shap_vals = compute_shap(model_pth,
+                                dataset,
+                                batch_size,
+                                device,
+                                indices)
+
+        plot_heatmap(shap_vals, len(res["f_x_i"]), epsilon, mode = "SHAP")
+
     plot_boxplot(np.array(freq_per_point), len(res["f_x_i"]), epsilon)
     plot_heatmap(np.array(freq_per_point), len(res["f_x_i"]), epsilon)
+
     plot_scatter_k_num(logs, epsilon)
 
 # ================Summary===================
