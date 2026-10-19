@@ -1024,6 +1024,9 @@ if __name__ == "__main__":
     X_batch, y_batch = X_batch.to(device), y_batch.to(device)
     x = X_batch[0]
 
+    if y_batch[0] == 0:
+        exit(-1)
+
     result = {
         'dataset': dataset,
         'instance_id': int(sample_index),
@@ -1079,6 +1082,7 @@ if __name__ == "__main__":
         # perhaps we could cache this in the method above, but we wouldnt save much
         result['f_x_i'] = list([loaded_model.feature_nns[i](xi.reshape(-1)).float().item() for (i, xi) in enumerate(x)])
         result['f_x'] = f_x.float().item()
+        result["time"] = f"{end_time - start_time:.2f} seconds"
 
         print(f"\n\n{result} \n\n")
         

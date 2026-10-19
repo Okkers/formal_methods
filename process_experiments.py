@@ -2,7 +2,10 @@ import json
 import os
 import numpy as np
 import matplotlib.pyplot as plt
-from sufficient_explanations import load_results, brute_force
+from sufficient_explanations import load_results, brute_force, find_all_subsets
+from baselines import compute_shap_lime
+import time
+from scipy import stats
 
 def frequencies(tuples, n):
     counts = [0] * n
@@ -16,12 +19,104 @@ def frequencies(tuples, n):
         return np.array(counts)
     return np.array(counts)
 
+def plot_boxplot(freq_per_point, features, eps):
+    plt.figure(figsize=(10, 5))
+    plt.boxplot(freq_per_point)
+
+    plt.xlabel("Feature")
+    plt.ylabel("Probability of appearing in an explanation (over multiple samples)")
+    plt.title(f"Probability of features appearing in an explanation ($\epsilon$={eps})")
+    plt.xticks(
+        ticks=range(features),
+        labels=range(1, features + 1),
+    )
+
+    plt.tight_layout()
+    plt.savefig(f"{processed_path}/boxplot.png")
+    plt.close()
+
+
+def plot_heatmap(freq_per_point, features, eps, mode="algorithm"):
+
+    plt.figure(figsize=(8, 8))
+    plt.imshow(freq_per_point, aspect="auto")
+
+    plt.xlabel("Feature", fontsize=18)
+    plt.ylabel("Input instance", fontsize=18)
+
+    plt.xticks(
+        ticks=range(features),
+        labels=range(1, features + 1),
+    )
+
+
+    if mode == "SHAP":
+        plt.title(f"SHAP values")
+        plot_name = f"{processed_path}/heatmap_SHAP.png"
+ 
+
+    elif mode == "LIME":
+        plt.title("LIME values")
+        plot_name = f"{processed_path}/heatmap_LIME.png"
+    
+
+    else:
+        plt.title(f"Probability of features appearing in an explanation, per input ($\\epsilon$={eps})")
+        plot_name = f"{processed_path}/heatmap.png"
+
+    plt.tight_layout()
+    plt.savefig(plot_name, dpi=300)
+    plt.close()
+
+def plot_scatter_k_num(logs, eps):
+    ks = np.array([log['k'] for log in logs])
+    sizes = np.array([log['num_subsets'] for log in logs])
+
+    # Linear regression
+    result = stats.linregress(ks, sizes)
+    r = result.rvalue
+    x_line = np.linspace(ks.min(), ks.max(), 100)
+    y_line = result.slope * x_line + result.intercept
+
+    plt.figure(figsize=(10, 5))
+    plt.scatter(ks, sizes, label="Data")
+    plt.plot(
+        x_line, y_line, color="red",
+        label=f"Linear fit: y = {result.slope:.2f}x + {result.intercept:.2f}"
+    )
+
+    # Correlation stats inside the plot
+    stats_text = (
+        f"Pearson r = {r:.3f}\n"
+        f"$R^2$ = {r**2:.3f}\n"
+        f"p-value = {result.pvalue:.2e}"
+    )
+    plt.text(
+        0.02, 0.97, stats_text,
+        transform=plt.gca().transAxes,
+        verticalalignment="top",
+        bbox=dict(boxstyle="round", facecolor="white", alpha=0.8),
+        fontsize=12,
+    )
+
+    plt.xlabel("Size of minimal explanation", fontsize=14)
+    plt.ylabel("Number of minimal explanations", fontsize=14)
+    plt.title(rf"Size of explanations vs number of explanations ($\epsilon$={eps})", fontsize=16)
+    plt.xticks(ticks=range(max(ks) + 1))
+    plt.tick_params(axis="both", labelsize=12)
+    plt.legend(loc="upper right", fontsize=12)
+
+    plt.tight_layout()
+    plt.savefig(f"{processed_path}/scatter_k_vs_subsets.png")
+    plt.close()
+
+
 
 def plot_frequencies(counts, len_subsets, k, processed_path, i):
+    os.makedirs(f"{processed_path}/frequencies", exist_ok=True)
+
     non_zero = counts[counts > 0]
     normalize = non_zero.min() if len(non_zero) > 0 else 1
-    print("SMALLEST: ", normalize)
-    print("BIGGEST: ", counts.max())
 
     plt.figure(figsize=(10, 5))
     plt.bar(range(len(counts)), counts / normalize)
@@ -31,12 +126,22 @@ def plot_frequencies(counts, len_subsets, k, processed_path, i):
     plt.title(f"Feature frequencies for instance {i} (subsets={len_subsets}, k={k})")
     plt.xticks(range(len(counts)))
     plt.tight_layout()
-    plt.savefig(f"{processed_path}/frequencies_{i}.png")
+    plt.savefig(f"{processed_path}/frequencies/frequencies_{i}.png")
     plt.close()
 
 
 if __name__ == "__main__":
-    folder = "breast_cancer_5_eps_15"
+    folder = "breast_cancer_30_eps_20"
+    # folder = "breast_cancer_y_is_0_eps20"
+    # folder = "credit_50_eps40"
+
+    dataset = "breast_cancer"
+
+    model_pth = f"nam_code/models/{dataset}/nam_full.pth"
+
+    batch_size = 1
+    device = "cpu"
+
     path = f"results/{folder}"
 
     processed_path = f"results_processed/{folder}"
@@ -45,12 +150,24 @@ if __name__ == "__main__":
     with open(f"{path}/parameters.json") as params:
         params = json.load(params)
 
-    N = params["N"]
+    
     epsilon = params["epsilon"]
+    indices = params['indices']
+    N = len(indices)
 
 
-    for i in range(N):
-        res = load_results(f"{path}/result__breast_cancer__{i}__{epsilon}.json")
+    RUN_WITH_BRUTE = False
+
+    runtime_brute = []
+    runtime_fast = []
+
+    logs = []
+    freq_per_point = []
+    for i in indices:
+        log = dict()
+        # logs.push[log]
+
+        res = load_results(f"{path}/result__{dataset}__{i}__{epsilon}.json")
 
         f_x = res['f_x']
 
@@ -60,25 +177,121 @@ if __name__ == "__main__":
         feature_mask = res["feat_order"]
 
         ls = np.array([b[0] for b in impact_bounds])
-        k = np.array(res['is_part_explanation']).sum()
+        k = int(np.array(res['is_part_explanation']).sum())
+        log['k'] = k
 
-        subsets = brute_force(f_x, ls, k)
-        # print(subsets)
+        subsets = None
+        if RUN_WITH_BRUTE:
+            t1 = time.time()
+            subsets = brute_force(f_x, ls, k)
+            runtime_brute.append(time.time() - t1)
+            print(f"{len(subsets)} cardinally minimal subsets were found with k={k}")
+            brute_sets = {tuple(sorted(s)) for s in subsets}
+            brute_counts = frequencies(brute_sets, len(ls))
+            log['runtime_brute'] = runtime_brute[-1]
+
+        t2 = time.time()
+        fast_subsets = find_all_subsets(f_x, ls, k)
+        runtime_fast.append(time.time() - t2)
+        log['runtime_enumeration'] = runtime_fast[-1]
+        log['total_time'] = float(res['time'].split(" ")[0]) + log['runtime_enumeration']
+
+        print(f"{len(fast_subsets)} subsets found by find_all_subsets with k={k}")
+
+        fast_sets = {tuple(sorted(indices)) for indices, _ in fast_subsets}
+
+        if RUN_WITH_BRUTE:
+            print(f"Both methods agree: {brute_sets == fast_sets}")
+  
+        counts_sorted = frequencies(fast_sets, len(ls))
+        fast_counts = np.zeros_like(counts_sorted)
+        fast_counts[feature_mask] = counts_sorted
+
+        if len(fast_subsets) == 0:
+            freq_per_point.append(fast_counts)
+        else:
+            freq_per_point.append(fast_counts / len(fast_subsets))
         
-        print(f"{len(subsets)} cardinally minimal subsets were found with k={k}")
-        counts = frequencies(subsets, len(ls))
 
         if subsets:
             # Index 0 is unused because feature IDs are 1-based.
-            features_in_all_subsets = counts == len(subsets)
+            features_in_all_subsets = fast_counts == len(subsets)
         else:
-            features_in_all_subsets = np.zeros(len(ls), dtype=bool)
+            features_in_all_subsets = fast_counts == len(fast_sets)
 
-        print(f"There are {features_in_all_subsets.sum()} features that are in all sets")
-        plot_frequencies(counts, len(subsets), k, processed_path, i)
+        in_intersection = np.where(features_in_all_subsets)[0].tolist()
+        intersection = int(features_in_all_subsets.sum())
+
+        print(f"There are {intersection} features that are in all sets")
+        log['intersection_size'] = intersection
+        log['features_in_intersection'] = in_intersection
+        log['num_subsets'] = len(fast_sets)
+        logs.append(log)
+
+        plot_frequencies(fast_counts, len(fast_sets), k, processed_path, i)
         print("\n")
 
+        # print("Runtimes Brute:", runtime_brute[-1])
+        # print("-----")
+        # print("Runtimes Fast:", runtime_fast[-1])
+        
+        os.makedirs(f"{processed_path}/individual", exist_ok=True)
+        with open(f'{processed_path}/individual/results_{i}.json', 'w') as f:
+            json.dump(log, f, indent=4)
+            f.write("\n")
 
-    
+    if dataset == "breast_cancer":
+        shap_vals, lime_vals, shap_time, lime_time = compute_shap_lime(model_pth,
+                                dataset,
+                                batch_size,
+                                device,
+                                indices
+                                )
 
 
+        plot_heatmap(shap_vals, len(res["f_x_i"]), epsilon, mode = "SHAP")
+        plot_heatmap(lime_vals, len(res["f_x_i"]), epsilon, mode = "LIME")
+
+    plot_boxplot(np.array(freq_per_point), len(res["f_x_i"]), epsilon)
+    plot_heatmap(np.array(freq_per_point), len(res["f_x_i"]), epsilon)
+
+    plot_scatter_k_num(logs, epsilon)
+
+# ================Summary===================
+# ===========================================
+    def summarize(values):
+        if not values:
+            return None
+        return {
+            "mean": float(np.mean(values)),
+            "std": float(np.std(values)),
+            "min": float(np.min(values)),
+            "max": float(np.max(values))
+        }
+
+    summary = {
+        "k": summarize([log["k"] for log in logs]),
+    }
+    summary['n_data_points'] = N
+    summary['epsilon'] = epsilon
+
+    if runtime_brute:
+        summary["runtime_brute"] = summarize(runtime_brute)
+
+    if runtime_fast:
+        summary["runtime_fast"] = summarize(runtime_fast)
+
+    times = [log["total_time"] for log in logs]
+    summary['runtime_per_run'] = summarize(times)
+    summary['runtime_total'] = sum(times)
+    summary['num_explanations'] = summarize([log["num_subsets"] for log in logs])
+    summary['features_in_intersection'] = summarize([len(log["features_in_intersection"]) for log in logs])
+
+    # Intersections
+    tuples = [log['features_in_intersection'] for log in logs]
+    freq = frequencies(tuples, len(ls))
+    summary['counts'] = freq.tolist()
+
+    with open(f"{processed_path}/summary.json", "w") as f:
+        json.dump(summary, f, indent=4)
+        f.write("\n")
