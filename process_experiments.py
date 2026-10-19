@@ -5,6 +5,7 @@ import matplotlib.pyplot as plt
 from sufficient_explanations import load_results, brute_force, find_all_subsets
 from baselines import compute_shap_lime
 import time
+from scipy import stats
 
 def frequencies(tuples, n):
     counts = [0] * n
@@ -40,8 +41,8 @@ def plot_heatmap(freq_per_point, features, eps, mode="algorithm"):
     plt.figure(figsize=(8, 8))
     plt.imshow(freq_per_point, aspect="auto")
 
-    plt.xlabel("Feature")
-    plt.ylabel("Input instance")
+    plt.xlabel("Feature", fontsize=18)
+    plt.ylabel("Input instance", fontsize=18)
 
     plt.xticks(
         ticks=range(features),
@@ -68,16 +69,42 @@ def plot_heatmap(freq_per_point, features, eps, mode="algorithm"):
     plt.close()
 
 def plot_scatter_k_num(logs, eps):
-    ks = [log['k'] for log in logs]
-    sizes = [log['num_subsets'] for log in logs]
+    ks = np.array([log['k'] for log in logs])
+    sizes = np.array([log['num_subsets'] for log in logs])
+
+    # Linear regression
+    result = stats.linregress(ks, sizes)
+    r = result.rvalue
+    x_line = np.linspace(ks.min(), ks.max(), 100)
+    y_line = result.slope * x_line + result.intercept
 
     plt.figure(figsize=(10, 5))
-    plt.scatter(ks, sizes)
+    plt.scatter(ks, sizes, label="Data")
+    plt.plot(
+        x_line, y_line, color="red",
+        label=f"Linear fit: y = {result.slope:.2f}x + {result.intercept:.2f}"
+    )
 
-    plt.xlabel("Size of minimal explanation")
-    plt.ylabel("Number of minimal explanations")
-    plt.title(f"Size of explanations vs number of explanations ($\epsilon$={eps})")
+    # Correlation stats inside the plot
+    stats_text = (
+        f"Pearson r = {r:.3f}\n"
+        f"$R^2$ = {r**2:.3f}\n"
+        f"p-value = {result.pvalue:.2e}"
+    )
+    plt.text(
+        0.02, 0.97, stats_text,
+        transform=plt.gca().transAxes,
+        verticalalignment="top",
+        bbox=dict(boxstyle="round", facecolor="white", alpha=0.8),
+        fontsize=12,
+    )
+
+    plt.xlabel("Size of minimal explanation", fontsize=14)
+    plt.ylabel("Number of minimal explanations", fontsize=14)
+    plt.title(rf"Size of explanations vs number of explanations ($\epsilon$={eps})", fontsize=16)
     plt.xticks(ticks=range(max(ks) + 1))
+    plt.tick_params(axis="both", labelsize=12)
+    plt.legend(loc="upper right", fontsize=12)
 
     plt.tight_layout()
     plt.savefig(f"{processed_path}/scatter_k_vs_subsets.png")
@@ -104,8 +131,6 @@ def plot_frequencies(counts, len_subsets, k, processed_path, i):
 
 
 if __name__ == "__main__":
-
-
     folder = "breast_cancer_30_eps_20"
     # folder = "breast_cancer_y_is_0_eps20"
     # folder = "credit_50_eps40"
@@ -168,7 +193,8 @@ if __name__ == "__main__":
         t2 = time.time()
         fast_subsets = find_all_subsets(f_x, ls, k)
         runtime_fast.append(time.time() - t2)
-        log['runtime_fast'] = runtime_fast[-1]
+        log['runtime_enumeration'] = runtime_fast[-1]
+        log['total_time'] = float(res['time'].split(" ")[0]) + log['runtime_enumeration']
 
         print(f"{len(fast_subsets)} subsets found by find_all_subsets with k={k}")
 
@@ -215,11 +241,12 @@ if __name__ == "__main__":
             f.write("\n")
 
     if dataset == "breast_cancer":
-        shap_vals, lime_vals = compute_shap_lime(model_pth,
+        shap_vals, lime_vals, shap_time, lime_time = compute_shap_lime(model_pth,
                                 dataset,
                                 batch_size,
                                 device,
-                                indices)
+                                indices
+                                )
 
 
         plot_heatmap(shap_vals, len(res["f_x_i"]), epsilon, mode = "SHAP")
@@ -254,6 +281,12 @@ if __name__ == "__main__":
     if runtime_fast:
         summary["runtime_fast"] = summarize(runtime_fast)
 
+    times = [log["total_time"] for log in logs]
+    summary['runtime_per_run'] = summarize(times)
+    summary['runtime_total'] = sum(times)
+    summary['num_explanations'] = summarize([log["num_subsets"] for log in logs])
+    summary['features_in_intersection'] = summarize([len(log["features_in_intersection"]) for log in logs])
+
     # Intersections
     tuples = [log['features_in_intersection'] for log in logs]
     freq = frequencies(tuples, len(ls))
@@ -262,6 +295,3 @@ if __name__ == "__main__":
     with open(f"{processed_path}/summary.json", "w") as f:
         json.dump(summary, f, indent=4)
         f.write("\n")
-
-
-

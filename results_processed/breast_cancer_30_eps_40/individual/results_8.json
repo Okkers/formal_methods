@@ -1,6 +1,7 @@
 {
     "k": 8,
-    "runtime_fast": 0.00012803077697753906,
+    "runtime_enumeration": 0.00014662742614746094,
+    "total_time": 76.32014662742614,
     "intersection_size": 3,
     "features_in_intersection": [
         1,

@@ -59,7 +59,7 @@ run_one() {
         --sample_index "$i" \
         --epsilon "$EPSILON" \
         --exp_log_dir "$EXP_LOG_DIR" \
-        --dataset credit
+        --dataset breast_cancer
     local rc=$?
 
     # Python's exit(-1) shows up as 255 in the shell

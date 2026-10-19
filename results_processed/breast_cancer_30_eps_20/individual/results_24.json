@@ -1,10 +1,11 @@
 {
     "k": 7,
-    "runtime_fast": 0.0003027915954589844,
+    "runtime_enumeration": 0.00017499923706054688,
+    "total_time": 33.33017499923706,
     "intersection_size": 2,
     "features_in_intersection": [
         10,
         13
     ],
-    "num_subsets": 28
+    "num_subsets": 27
 }

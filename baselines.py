@@ -3,6 +3,7 @@ import torch
 import numpy as np
 import matplotlib.pyplot as plt
 from lime.lime_tabular import LimeTabularExplainer
+import time
 
 def compute_shap_lime(model_pth, dataset, batch_size, device, sample_indices):
     train_loader, test_loader, input_size = load_data(dataset, batch_size=batch_size)
@@ -14,9 +15,11 @@ def compute_shap_lime(model_pth, dataset, batch_size, device, sample_indices):
     # SHAP
     shapley_vals = np.empty((len(sample_indices), len(X_train[0])))
 
+    shapley_start = time.time()
     for indx, sample_index in enumerate(sample_indices):
         X_batch, y_batch= list(test_loader)[sample_index]
         x = X_batch[0]
+
 
         with torch.no_grad():
             out = model(x[None]).numpy().reshape(-1)[0]
@@ -33,9 +36,18 @@ def compute_shap_lime(model_pth, dataset, batch_size, device, sample_indices):
         for indy, val in enumerate(sha):
             shapley_vals[indx, indy] = val
 
+    # Normalise
+    plc_out = np.abs(shapley_vals)
+    max_val =  plc_out.max(axis=1, keepdims=True)
+    max_val = np.where(max_val==0, 1.0, max_val)
+    plc_out /= max_val
+
+    shapley_runtime = time.time() - shapley_start
+
     # LIME
     X = np.random.normal(size=(len(sample_indices), len(X_train[0])))
 
+    lime_start = time.time()
     def predict(X):
         with torch.no_grad():
             out = model(torch.as_tensor(X, dtype=torch.float32))
@@ -52,26 +64,24 @@ def compute_shap_lime(model_pth, dataset, batch_size, device, sample_indices):
         
         for idx, coef in exp.as_map()[1]: 
             lime_vals[r, idx] = coef
-
-
+    
     # Normalise
-    plc_out = np.abs(shapley_vals)
-    max_val =  plc_out.max(axis=1, keepdims=True)
-    max_val = np.where(max_val==0, 1.0, max_val)
-
     lime_out = np.abs(lime_vals)
     max_val_lime = lime_out.max(axis=1, keepdims=True)
     max_val_lime = np.where(max_val_lime==0, 1.0, max_val_lime)
+    lime_out /= max_val_lime
 
-    return plc_out / max_val, lime_out / max_val_lime
+    lime_runtime = time.time() - lime_start
+
+    return plc_out, lime_out, shapley_runtime, lime_runtime
 
 
 if __name__ == "__main__":
     dataset = "breast_cancer"
     batch_size = 1
     device = "cpu"
-    sample_indices = range(30)
-    model_pth = "C:/Users/Spark/Desktop/tu_delft/formal_methods/nam_code/models/breast_cancer/nam_full.pth"
+    sample_indices = range(48)
+    model_pth = "nam_code/models/breast_cancer/nam_full.pth"
 
     test = compute_shap_lime(model_pth,
                         dataset,
@@ -79,6 +89,6 @@ if __name__ == "__main__":
                         device,
                         sample_indices,
                         )
-
-    plt.imshow(test)
+    
+    plt.imshow(test[0])
     plt.show()
